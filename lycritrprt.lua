@@ -22,6 +22,28 @@ local lycritrprt = {}
 local REPORTS = {}
 
 
+---------------------------------
+-- TEMPLATES
+---------------------------------
+
+local TEMPLATES = {}
+
+TEMPLATES.annotation = [[
+\begin{annotation}
+<<<measure-no>>>) <<<beat-string>>> | <<<context-id>>>\\
+<<<message>>> \emph{(<<<author>>>, <<<type>>>)
+\href{textedit://<<<location>>>}{Ursprung}}
+\end{annotation}
+]]
+
+TEMPLATES.report = [[
+\subsection*{<<<score-id>>>}
+\small
+\setlength{\parindent}{0pt}
+<<<entries>>>
+\normalsize
+]]
+
 function annotations.add_annotation(text)
   local ann, score = annotations.parse_annotation(text)
   if not SCORES[score] then
@@ -30,6 +52,20 @@ function annotations.add_annotation(text)
    end
   table.insert(ANNOTATIONS[score], ann)
 end
+
+
+function annotations.make(options)
+  print()
+  print("Options?")
+  print(options)
+  local ann_list = ANNOTATIONS[options]
+  result = ''
+  for i, ann in ipairs(ann_list) do
+    result = result..util.replace(TEMPLATES.annotation, ann)
+  end
+  return result
+end
+
 
 --[[
   Parse a blcok of LaTeX key=value assignments.
@@ -61,15 +97,45 @@ function source.parse()
   end
 end
 
+
+
+
+
+
+-- Print (to TeX) the given string as a sequence of strings
+function util.print_latex(content)
+  local lines = content:explode('\n')
+  for _, line in ipairs(lines) do
+    tex.print(line)
+  end
 end
 
 
+-- Take a string (for use as pattern) and quote any hyphens
+function util.quote_hyphens(input)
+  return input:gsub('%-', '%%-')
+end
 
 
-
-
-
-
+--[[
+  Replaces fields in a template string with values from the META, CONFIG.options,
+  or CONFIG.engrave_options tables -- or a custom table given as argument.
+  A field is wrapped in three angled brackets and must match a top-level entry
+  in either of the tables. This also implies that field names must be unique
+  across these three tables.
+  Fields that are *not* found in the tables are ignored and should be handled
+  specifically afterwards.
+]]
+function util.replace(template, tbl)
+  local value
+  for element in template:gmatch('<<<(.-)>>>') do
+    value = tbl[element]
+    if value then
+      template = template:gsub('<<<'..util.quote_hyphens(element)..'>>>', value)
+    end
+  end
+  return template
+end
 
 function util.unbracify(input)
   return input:match('^{?(.-)}?,?$')
@@ -100,9 +166,13 @@ function lycritrprt.load_critical_report(basename)
 end
 
 function lycritrprt.print_critical_report(options)
-  print()
-  tex.print("I would now print a critical report with\\\\")
-  tex.print(options.."\\\\")
+  --TODO: Make this really configurable by parsing key=value items
+  local output = TEMPLATES.report:gsub('<<<score%-id>>>', options)
+  output = util.replace(output, {
+    ['entries'] = annotations.make(options)
+  })
+  print(output)
+  util.print_latex(output)
 end
 
 return lycritrprt

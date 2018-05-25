@@ -12,3 +12,10 @@
 \newcommand{\printCriticalReport}[1][]{%
 \directlua{lycritrprt.print_critical_report([[#1]])}
 }
+
+
+\newenvironment{annotation}{
+\medskip
+}{
+\par\medskip\hrule\medskip
+}
