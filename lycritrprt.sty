@@ -1,9 +1,10 @@
 \ProvidesPackage{lycritrprt}
 
+% Dependencies
+\RequirePackage{luatexbase}
+\RequirePackage{lilyglyphs}
 
-% Load the Lua toolkit for creating the volume .tex files
 \directlua{ lycritrprt = require("lycritrprt.lua") }
-
 
 \newcommand{\loadCriticalReport}[1]{%
 \directlua{lycritrprt.load_critical_report([[#1]])}
