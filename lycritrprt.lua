@@ -28,22 +28,79 @@ local REPORTS = {}
 
 local TEMPLATES = {}
 
-TEMPLATES.annotation = [[
+--[[
+  Templates for all supported annotation fields.
+  Fields for which there are no templates are silently ignored
+  (for example all the different fields about the rhythmic location).
+  On the other hand this means that custom annotation fields can easily
+  be supported by adding field templates.
+  Each template is a table with one or two elements. If a second element
+  is present this is used when the annotation field is not present. Otherwise
+  the keyword in the template is simply removed.
+
+  Items can be arbitrarily styled, and non-standard macros can be used
+  when they are defined elsewhere.
+
+  The top-level entries represent report styles. If a different style than
+  'default' is requested then fields present in the given style will override
+  the ones in the 'default' template.
+  NOTE: This is not implemented yet.
+--]]
+TEMPLATES.ann_fields = {
+  ['default'] = {
+    ['measure-no'] = { [[<<<measure-no>>>)]] },
+    ['beat-string'] =  { [[<<<beat-string>>> |]] },
+    ['context-id'] = { [[<<<context-id>>>\\]] },
+    ['message'] = { [[<<<message>>>]] },
+    ['author'] = { [[\emph{(<<<author>>>, ]], [[\emph{(]]},
+    ['type'] = { [[<<<type>>>)}]]},
+    ['location'] = { [[\href{textedit://<<<location>>>}{Ursprung}]]}
+  }
+}
+
+
+--[[
+  Overall template for a single annotation entry.
+  This defines the basic outline of a report entry, the order and selection
+  of fields. The actual content of the fields (including behaviour for missing
+  entries) is specified in the ann_fields template.
+
+  The top-level entries represent report styles. If a different style than
+  'default' is requested then fields present in the given style will override
+  the ones in the 'default' template.
+  NOTE: This is not implemented yet.
+--]]
+TEMPLATES.annotation = {
+  ['default'] = [[
 \begin{annotation}
-<<<measure-no>>>) <<<beat-string>>> | <<<context-id>>>\\
-<<<message>>> \emph{(<<<author>>>, <<<type>>>)
-\href{textedit://<<<location>>>}{Ursprung}}
+<<<measure-no>>>
+<<<beat-string>>>
+<<<context-id>>>
+<<<message>>>
+<<<author>>><<<type>>>
+<<<location>>>
 \end{annotation}
 ]]
+}
 
-TEMPLATES.report = [[
-\subsection*{<<<score-id>>>}
+--[[
+  Overall template for a single report.
+--]]
+TEMPLATES.report = {
+  ['default'] = [[
+<<<heading>>>
 \small
 \setlength{\parindent}{0pt}
 <<<entries>>>
 \normalsize
 ]]
+}
 
+
+--[[
+  Parse an annotation (string), create a table from it, add it to the
+  corresponding annotations sub-table.
+--]]
 function annotations.add_annotation(text)
   local ann, score = annotations.parse_annotation(text)
   if not SCORES[score] then
@@ -54,18 +111,55 @@ function annotations.add_annotation(text)
 end
 
 
+--[[
+  Read the annotations (configured by the options argument),
+  generate and return TeX code to print a report.
+  
+  NOTE: options currently is simply expected to contain a string
+  key for the ANNOTATIONS.score table. All the configuration remains
+  to be implemented.
+--]]
 function annotations.make(options)
-  print()
-  print("Options?")
-  print(options)
   local ann_list = ANNOTATIONS[options]
   result = ''
   for i, ann in ipairs(ann_list) do
-    result = result..util.replace(TEMPLATES.annotation, ann)
+    result = result..annotations.make_annotation(ann)
   end
   return result
 end
 
+
+--[[
+  Interpolate a single entry within an annotation with the value
+  from the annotation.
+  If the entry is missing and an alternative field template is defined
+  that is used, otherwise the empty value is interpolated with the
+  regular template.
+--]]
+function annotations.interpolate(ann, element, tpl)
+  local content = ann[element] or ''
+  if ((content == '') and (#tpl == 2)) then
+    return tpl[2]
+  else
+    return tpl[1]:gsub('<<<'..util.quote_hyphens(element)..'>>>', content)
+  end
+end
+
+
+--[[
+  Create and return a string of TeX code representing the given
+  annotation.
+--]]
+function annotations.make_annotation(ann)
+  local tpl = TEMPLATES.annotation['default']
+  local field_tpl = TEMPLATES.ann_fields['default']
+  for element in tpl:gmatch('<<<(.-)>>>') do
+    tpl = tpl:gsub(
+      '<<<'..util.quote_hyphens(element)..'>>>',
+      annotations.interpolate(ann, element, field_tpl[element]))
+  end
+  return tpl
+end
 
 --[[
   Parse a blcok of LaTeX key=value assignments.
@@ -90,7 +184,11 @@ function annotations.parse_annotation(input)
 end
 
 
-
+--[[
+  Split the original input file into annotations and parse them.
+  After this function the annotations are available in the
+  ANNOTATIONS[score-id] tables.
+--]]
 function source.parse()
   for _, ann, _ in string.gmatch(source.raw, '(\\.-%[%s-)(%g.-)(%]%s-\n)') do
     annotations.add_annotation(ann)
@@ -118,13 +216,11 @@ end
 
 
 --[[
-  Replaces fields in a template string with values from the META, CONFIG.options,
-  or CONFIG.engrave_options tables -- or a custom table given as argument.
+  Replaces fields in a template string with values from the tbl table.
   A field is wrapped in three angled brackets and must match a top-level entry
-  in either of the tables. This also implies that field names must be unique
-  across these three tables.
-  Fields that are *not* found in the tables are ignored and should be handled
-  specifically afterwards.
+  in tpl. 
+  Fields that are *not* found in the tables are ignored (i.e. kept in their
+  template state) and should be handled specifically afterwards.
 ]]
 function util.replace(template, tbl)
   local value
@@ -137,6 +233,8 @@ function util.replace(template, tbl)
   return template
 end
 
+
+-- Remove leading and trailing curly braces from a string
 function util.unbracify(input)
   return input:match('^{?(.-)}?,?$')
 end
@@ -144,7 +242,11 @@ end
 
 
 
-
+--[[
+  Load a critical report from a file, parse and store its annotations.
+  The given 'basename' argument may directly point to a file, to a file
+  basename.inp, or basename.annotations.inp
+--]]
 function lycritrprt.load_critical_report(basename)
   local report_file = ''
   if lfs.isfile(basename) then report_file = basename
@@ -165,13 +267,20 @@ function lycritrprt.load_critical_report(basename)
 
 end
 
+
+--[[
+  Generate code for a critical report and 'print' it to the TeX document.
+  NOTE: The options are currently simply a string referencing the score-id.
+  Proper configuration remains to be implemented.
+--]]
 function lycritrprt.print_critical_report(options)
   --TODO: Make this really configurable by parsing key=value items
-  local output = TEMPLATES.report:gsub('<<<score%-id>>>', options)
+  local heading = ''
+  if options ~= '' then heading = [[\subsection*{]]..options..[[}]] end
+  local output = TEMPLATES.report['default']:gsub('<<<heading>>>', heading)
   output = util.replace(output, {
     ['entries'] = annotations.make(options)
   })
-  print(output)
   util.print_latex(output)
 end
 
