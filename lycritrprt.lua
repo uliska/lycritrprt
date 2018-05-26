@@ -89,7 +89,6 @@ TEMPLATES.annotation = {
 --]]
 TEMPLATES.report = {
   ['default'] = [[
-<<<heading>>>
 \small
 \setlength{\parindent}{0pt}
 <<<entries>>>
@@ -121,10 +120,10 @@ end
   to be implemented.
 --]]
 function annotations.make(options)
-  local ann_list = ANNOTATIONS[options]
+  local ann_list = ANNOTATIONS[options['score-id']]
   result = ''
   for i, ann in ipairs(ann_list) do
-    result = result..annotations.make_annotation(ann)
+    result = result..annotations.make_annotation(ann, options)
   end
   return result
 end
@@ -150,8 +149,11 @@ end
 --[[
   Create and return a string of TeX code representing the given
   annotation.
+  If options has a 'type' field then filter by that.
+  NOTE: Currently it is only supported to filter by (i.e. include )*one* type
 --]]
-function annotations.make_annotation(ann)
+function annotations.make_annotation(ann, options)
+  if options.type and (ann.type ~= options.type) then return '' end
   local tpl = TEMPLATES.annotation['default']
   local field_tpl = TEMPLATES.ann_fields['default']
   for element in tpl:gmatch('<<<(.-)>>>') do
@@ -199,6 +201,28 @@ end
 
 
 
+--[[
+  Parse a key=val,key=val string into a table.
+  TODO: comma-separated lists within a value are not supported yet.
+--]]
+function util.parse_keyvals(input)
+  local result = {}
+  -- determine first key
+  local from, to = input:find('(%g-)%s-=')
+  local key = input:sub(from, to-1)
+  input = input:sub(to+1)
+  -- find pairs of value/next key for the remainder of the input string
+  for value, next_key in input:gmatch('%s-(.-),(%g-)=')
+  do
+    result[key] = util.unbracify(value)
+    key = next_key
+  end
+  -- find the last value.
+  result[key] = util.unbracify(input:match('.*=(.*)') or input)
+  return result
+end
+
+
 
 
 -- Print (to TeX) the given string as a sequence of strings
@@ -241,8 +265,6 @@ function util.unbracify(input)
 end
 
 
-
-
 --[[
   Load a critical report from a file, parse and store its annotations.
   The given 'basename' argument may directly point to a file, to a file
@@ -275,14 +297,12 @@ end
   Proper configuration remains to be implemented.
 --]]
 function lycritrprt.print_critical_report(options)
-  --TODO: Make this really configurable by parsing key=value items
-  local heading = ''
-  if options ~= '' then heading = [[\subsection*{]]..options..[[}]] end
-  local output = TEMPLATES.report['default']:gsub('<<<heading>>>', heading)
-  output = util.replace(output, {
-    ['entries'] = annotations.make(options)
-  })
-  util.print_latex(output)
+  options = util.parse_keyvals(options)
+  util.print_latex(
+    util.replace(
+      TEMPLATES.report[options['style'] or 'default'], {
+        ['entries'] = annotations.make(options)
+      }))
 end
 
 return lycritrprt
