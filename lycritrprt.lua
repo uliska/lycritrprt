@@ -50,6 +50,7 @@ TEMPLATES.ann_fields = {
   ['default'] = {
     ['measure-no'] = { [[<<<measure-no>>>)]] },
     ['beat-string'] =  { [[<<<beat-string>>> |]] },
+    ['beat-string-lilyglyphs'] = { [[<<<beat-string-lilyglyphs>>>\ |]]},
     ['context-id'] = { [[<<<context-id>>>\\]] },
     ['message'] = { [[<<<message>>>]] },
     ['author'] = { [[\emph{(<<<author>>>, ]], [[\emph{(]]},
@@ -74,7 +75,7 @@ TEMPLATES.annotation = {
   ['default'] = [[
 \begin{annotation}
 <<<measure-no>>>
-<<<beat-string>>>
+<<<beat-string-lilyglyphs>>>
 <<<context-id>>>
 <<<message>>>
 <<<author>>><<<type>>>
@@ -114,7 +115,7 @@ end
 --[[
   Read the annotations (configured by the options argument),
   generate and return TeX code to print a report.
-  
+
   NOTE: options currently is simply expected to contain a string
   key for the ANNOTATIONS.score table. All the configuration remains
   to be implemented.
@@ -218,7 +219,7 @@ end
 --[[
   Replaces fields in a template string with values from the tbl table.
   A field is wrapped in three angled brackets and must match a top-level entry
-  in tpl. 
+  in tpl.
   Fields that are *not* found in the tables are ignored (i.e. kept in their
   template state) and should be handled specifically afterwards.
 ]]
