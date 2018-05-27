@@ -6,6 +6,10 @@
 
 \directlua{ lycritrprt = require("lycritrprt.lua") }
 
+\newcommand{\loadLyReportStyles}[1]{%
+\directlua{lycritrprt.load_styles([[#1]])}
+}
+
 \newcommand{\loadCriticalReport}[1]{%
 \directlua{lycritrprt.load_critical_report([[#1]])}
 }

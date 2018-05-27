@@ -71,9 +71,6 @@ TEMPLATES.ann_fields = {
     ['author'] = { [[\emph{(<<<author>>>, ]], [[\emph{(]]},
     ['type'] = { [[<<<type>>>)}]]},
     ['location'] = { [[\href{textedit://<<<location>>>}{Ursprung}]]}
-  },
-  ['fancy'] = {
-    ['message'] = { [[\textsc{<<<message>>>}]] }
   }
 }
 
@@ -342,6 +339,56 @@ function lycritrprt.load_critical_report(basename)
 
   source.parse()
 
+end
+
+
+--[[
+  Load a file with custom style definitions.
+  Any style definitions in that file will overwrite the default ones.
+  It is possible to define completely new styles or to adjust the 'default'
+  which is defined in the package.
+--]]
+function lycritrprt.load_styles(file)
+  -- Try loading the given file which has to return a compatible templates table
+  local success, custom_tpls = pcall(require, file)
+  if not success then
+    warn(string.format([[
+Failed to find custom stylesheet "%s" for critical reports.
+Fall back to default styles.
+    ]], file))
+    return
+  end
+
+  -- Iterate over *our* defined templates
+  for k, tpl in pairs(TEMPLATES) do
+    if custom_tpls[k] then
+      -- There is a custom template defined,
+      -- iterate over styles defined in the custom template
+      for style, def in pairs(custom_tpls[k]) do
+        if (not TEMPLATES[k][style]) or (type(def) ~= 'table')
+        then
+          --[[
+            If the existing template doesn't have a field for the
+            style we're currently iterating over it means we add a
+            "new" custom style, so we can simply insert it into the
+            template table.
+            If the style definition is not a table (i.e. a simple value)
+            we can also simply overwrite the current value.
+          --]]
+          TEMPLATES[k][style] = def
+        else
+          --[[
+            Iterate over the fields in the custom style definition,
+            overwriting each field that is present in the custom definition,
+            leaving the others at their default values.
+          --]]
+          for field, val in pairs(def) do
+            TEMPLATES[k][style][field] = def[field]
+          end
+        end
+      end
+    end
+  end
 end
 
 
