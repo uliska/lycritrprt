@@ -29,6 +29,21 @@ local REPORTS = {}
 local TEMPLATES = {}
 
 --[[
+  Each element of the TEMPLATES table is in itself a table with entries
+  for different "styles". One entry 'default' is mandatory, adding more
+  fields effectively adds different report styles.
+  Each template style may consist either of a single value (as is the case
+  with TEMPLATES.annotation) or a *flat* table (see TEMPLATES.ann_fields).
+
+  Templates are retrieved with the TEMPLATES.get(type, style) function.
+  If the requested style has not been defined for the requested template the
+  'default' template is returned instead.
+  If the template is a table of sub-items then a style may "override" all
+  sub-items or only selected fields, in which case undefined fields are
+  populated with the values of the default template.
+--]]
+
+--[[
   Templates for all supported annotation fields.
   Fields for which there are no templates are silently ignored
   (for example all the different fields about the rhythmic location).
@@ -56,6 +71,9 @@ TEMPLATES.ann_fields = {
     ['author'] = { [[\emph{(<<<author>>>, ]], [[\emph{(]]},
     ['type'] = { [[<<<type>>>)}]]},
     ['location'] = { [[\href{textedit://<<<location>>>}{Ursprung}]]}
+  },
+  ['fancy'] = {
+    ['message'] = { [[\textsc{<<<message>>>}]] }
   }
 }
 
@@ -147,6 +165,41 @@ end
 
 
 --[[
+  Retrieve a template with a given style.
+  If the requested style is not defined for the template
+  the 'default' is returned.
+  If the template is a table then fields from the style will
+  override those from the default, using the default for fields
+  not defined in the style.
+--]]
+function TEMPLATES.get(tpl_type, style)
+  local tpl = TEMPLATES[tpl_type]
+  if not tpl then err('Undefined template: '..tpl_type) end
+
+  -- No specific style requested
+  if not style then return tpl.default end
+
+  -- Requested style is not defined
+  if not tpl[style] then
+    warn('No style "'..style..'" defined for template "'..tpl_type..'".\nFall back to default.')
+    return tpl.default
+  end
+
+  -- We know there *is* a template for the style.
+  -- If it's not a table, simple return it.
+  if type(tpl[style]) ~= 'table' then return tpl[style] end
+
+  -- Style template is a table. Fields defined in the style override defaults.
+  local tpl_result = {}
+  for k,v in pairs(tpl.default) do
+    tpl_result[k] = tpl[style][k] or tpl.default[k]
+  end
+
+  return tpl_result
+end
+
+
+--[[
   Create and return a string of TeX code representing the given
   annotation.
   If options has a 'type' field then filter by that.
@@ -154,8 +207,8 @@ end
 --]]
 function annotations.make_annotation(ann, options)
   if options.type and (ann.type ~= options.type) then return '' end
-  local tpl = TEMPLATES.annotation['default']
-  local field_tpl = TEMPLATES.ann_fields['default']
+  local tpl = TEMPLATES.get('annotation', options.style)
+  local field_tpl = TEMPLATES.get('ann_fields', options.style)
   for element in tpl:gmatch('<<<(.-)>>>') do
     tpl = tpl:gsub(
       '<<<'..util.quote_hyphens(element)..'>>>',
@@ -164,8 +217,9 @@ function annotations.make_annotation(ann, options)
   return tpl
 end
 
+
 --[[
-  Parse a blcok of LaTeX key=value assignments.
+  Parse a block of LaTeX key=value assignments.
   Assignments spanning multiple lines are concatenated to a single string,
   Line comments are currently not supported
   (i.e. ignored and will probably cause errors).
@@ -298,9 +352,10 @@ end
 --]]
 function lycritrprt.print_critical_report(options)
   options = util.parse_keyvals(options)
+  if not options.style then options.style = 'default' end
   util.print_latex(
     util.replace(
-      TEMPLATES.report[options['style'] or 'default'], {
+      TEMPLATES.get('report', options.style), {
         ['entries'] = annotations.make(options)
       }))
 end
