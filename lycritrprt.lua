@@ -203,7 +203,7 @@ end
   NOTE: Currently it is only supported to filter by (i.e. include )*one* type
 --]]
 function annotations.make_annotation(ann, options)
-  if options.type and (ann.type ~= options.type) then return '' end
+  if options.type and (ann['ann-type'] ~= options.type) then return '' end
   local tpl = TEMPLATES.get('annotation', options.style)
   local field_tpl = TEMPLATES.get('ann_fields', options.style)
   for element in tpl:gmatch('<<<(.-)>>>') do
